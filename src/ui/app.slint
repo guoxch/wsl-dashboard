@@ -363,6 +363,7 @@ export component AppWindow inherits Window {
     callback load_proxy_settings();
     callback save_proxy_settings(bool, string, string, string, bool, string, string);
     callback check_proxy_connection(string);
+    callback detect_proxy_host();
     // USB callbacks
     callback refresh_usb(bool);
     callback usb_bind(string);
@@ -762,6 +763,9 @@ export component AppWindow inherits Window {
                                 }
                                 show_proxy_help => {
                                     root.show_network_proxy_help = true;
+                                }
+                                detect_proxy_host => {
+                                    root.detect_proxy_host();
                                 }
                             }
 

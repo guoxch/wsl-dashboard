@@ -25,6 +25,7 @@ export component HttpProxyView inherits Rectangle {
     callback save_proxy_settings(bool, string, string, string, bool, string, string);
     callback open_check_proxy_dialog();
     callback show_proxy_help();
+    callback detect_proxy_host();
 
     VerticalLayout {
         padding: 0px;
@@ -156,6 +157,13 @@ export component HttpProxyView inherits Rectangle {
                                         placeholder-text: root.default_host;
                                         width: 250px;
                                         edited(t) => { root.proxy_host = t; }
+                                    }
+
+                                    CustomButton {
+                                        text: AppI18n.t("network.proxy_detect_btn", [AppI18n.version]);
+                                        height: 32px;
+                                        enabled: root.proxy_is_enabled;
+                                        clicked => { root.detect_proxy_host(); }
                                     }
 
                                     if (!AppI18n.is-rtl): Rectangle { horizontal-stretch: 1; }
