@@ -225,4 +225,114 @@ pub fn setup(app: &AppWindow, app_handle: slint::Weak<AppWindow>, app_state: Arc
             });
         });
     });
+
+    let ah = app_handle.clone();
+    app.on_detect_proxy_host(move || {
+        let ah = ah.clone();
+        tokio::spawn(async move {
+            tracing::info!("Auto-detecting Windows host IP from WSL network...");
+
+            let detected_ip = detect_windows_host_ip();
+
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(app) = ah.upgrade() {
+                    match detected_ip {
+                        Some(ip) => {
+                            app.set_network_proxy_host(ip.clone().into());
+                            let msg = crate::i18n::tr("network.proxy_detect_success", &[ip]);
+                            app.set_task_status_text(msg.into());
+                            app.set_task_status_visible(true);
+                        }
+                        None => {
+                            let msg = crate::i18n::t("network.proxy_detect_failed");
+                            app.set_task_status_text(msg.into());
+                            app.set_task_status_visible(true);
+                        }
+                    }
+                }
+                let ah_timer = ah.clone();
+                slint::Timer::single_shot(std::time::Duration::from_secs(4), move || {
+                    if let Some(app) = ah_timer.upgrade() {
+                        app.set_task_status_visible(false);
+                    }
+                });
+            });
+        });
+    });
+}
+
+/// 在 WSL 内执行命令，自动探测 Windows 主机在 WSL 网络中的 IP 地址
+///
+/// 优先从 `/etc/resolv.conf` 的 nameserver 获取（NAT 模式下通常指向 Windows 网关），
+/// 备选从默认路由的网关地址获取。
+fn detect_windows_host_ip() -> Option<String> {
+    use std::process::Command;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        // 方法 1：从 /etc/resolv.conf 获取 nameserver
+        let output = Command::new("wsl")
+            .env("WSL_UTF8", "1")
+            .args(["--", "cat", "/etc/resolv.conf"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        if let Ok(out) = output {
+            if out.status.success() {
+                let stdout = crate::wsl::decoder::decode_output(&out.stdout);
+                for line in stdout.lines() {
+                    let line = line.trim();
+                    if line.starts_with("nameserver") {
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if parts.len() > 1 {
+                            let ip = parts[1];
+                            if ip != "127.0.0.1" && !ip.is_empty() {
+                                tracing::info!("Detected Windows host IP from resolv.conf: {}", ip);
+                                return Some(ip.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 方法 2：从默认路由获取网关地址
+        let output = Command::new("wsl")
+            .env("WSL_UTF8", "1")
+            .args(["--", "ip", "route", "show", "default"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+
+        if let Ok(out) = output {
+            if out.status.success() {
+                let stdout = crate::wsl::decoder::decode_output(&out.stdout);
+                for line in stdout.lines() {
+                    let line = line.trim();
+                    if line.starts_with("default") {
+                        // 格式：default via 172.x.x.1 dev eth0
+                        let parts: Vec<&str> = line.split_whitespace().collect();
+                        if let Some(via_idx) = parts.iter().position(|&s| s == "via") {
+                            if via_idx + 1 < parts.len() {
+                                let ip = parts[via_idx + 1];
+                                if ip != "127.0.0.1" && !ip.is_empty() {
+                                    tracing::info!("Detected Windows host IP from default route: {}", ip);
+                                    return Some(ip.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        // 非 Windows 平台无法执行 wsl 命令
+    }
+
+    tracing::warn!("Failed to detect Windows host IP from WSL network");
+    None
 }

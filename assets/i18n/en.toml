@@ -47,6 +47,7 @@ proxy_auth = "Proxy authentication"
 proxy_user = "Login:"
 proxy_pass = "Password:"
 proxy_check_btn = "Check Connection"
+proxy_detect_btn = "Auto Detect"
 
 # Handlers - Shared/Generic
 error_uac = "Operation denied (UAC)"
@@ -59,6 +60,8 @@ proxy_error_invalid = "Invalid Proxy config: {0}"
 proxy_test_success = "Connection successful: HTTP {0}"
 proxy_test_failed = "Connection failed: {0}"
 proxy_error_port = "Port must be a number between 1 and 65534"
+proxy_detect_success = "Detected host IP: {0}"
+proxy_detect_failed = "Failed to detect host IP, please enter manually"
 
 # Handlers - Rules
 rules_apply_success = "Port {0} successfully mapped to {1}"
